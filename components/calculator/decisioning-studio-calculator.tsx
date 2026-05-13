@@ -1,16 +1,33 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { InputForm } from "./input-form";
 import { ResultsSummary } from "./results-summary";
 import { ValueChart } from "./value-chart";
 import { ProjectionsTable } from "./projections-table";
+import { CaseStudiesSection } from "./case-studies-section";
 import { DEFAULT_INPUTS, CalculatorInputs } from "@/lib/calculator-types";
 import { calculateResults } from "@/lib/calculator-utils";
+import { Industry } from "@/lib/case-studies-data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { InitialData } from "@/lib/use-case-types";
 import { ArrowLeft, Workflow } from "lucide-react";
+
+// Map common industry names to our Industry type
+function mapIndustryToType(industry?: string): Industry {
+  if (!industry) return "retail";
+  const lower = industry.toLowerCase();
+  if (lower.includes("financial") || lower.includes("bank") || lower.includes("fintech")) return "financial_services";
+  if (lower.includes("telecom")) return "telecom";
+  if (lower.includes("health") || lower.includes("pharma")) return "healthcare";
+  if (lower.includes("energy") || lower.includes("utility")) return "energy_utilities";
+  if (lower.includes("travel") || lower.includes("airline") || lower.includes("hotel")) return "travel";
+  if (lower.includes("food") || lower.includes("restaurant") || lower.includes("qsr")) return "food_beverage";
+  if (lower.includes("tech") || lower.includes("software")) return "technology";
+  if (lower.includes("retail") || lower.includes("ecommerce") || lower.includes("e-commerce")) return "retail";
+  return "other";
+}
 
 interface DecisioningStudioCalculatorProps {
   initialData: InitialData;
@@ -22,8 +39,23 @@ export function DecisioningStudioCalculator({ initialData, onBack }: Decisioning
     ...DEFAULT_INPUTS,
     useCaseName: initialData.companyName ? `${initialData.companyName} - Decisioning Studio` : "Decisioning Studio Use Case",
   });
+  
+  const [suggestedUplift, setSuggestedUplift] = useState<number>(15);
 
   const results = useMemo(() => calculateResults(inputs), [inputs]);
+
+  const handleUpliftChange = useCallback((uplift: number) => {
+    setSuggestedUplift(uplift);
+  }, []);
+
+  const applySuggestedUplift = useCallback(() => {
+    setInputs(prev => ({
+      ...prev,
+      incrementalLift: suggestedUplift,
+    }));
+  }, [suggestedUplift]);
+
+  const mappedIndustry = mapIndustryToType(initialData.industry);
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,12 +96,34 @@ export function DecisioningStudioCalculator({ initialData, onBack }: Decisioning
         {/* Instructions Banner */}
         <div className="mb-8 rounded-lg border-2 border-accent bg-accent/10 p-4">
           <p className="text-sm text-accent-foreground">
-            <span className="font-semibold">Instructions:</span> Fill in the key inputs below to calculate the projected value. 
-            Use Notes or Comments to explain assumptions. Reach out to your ASC with questions.
+            <span className="font-semibold">Instructions:</span> Start by selecting your industry and use case type below to see relevant case studies and projected uplift. 
+            Then fill in the key inputs to calculate your projected value.
           </p>
         </div>
 
         <div className="space-y-8">
+          {/* Case Studies Section */}
+          <CaseStudiesSection 
+            initialIndustry={mappedIndustry} 
+            onUpliftChange={handleUpliftChange} 
+          />
+
+          {/* Suggested Uplift Application */}
+          {suggestedUplift !== inputs.incrementalLift && (
+            <div className="rounded-lg border-2 border-primary bg-primary/5 p-4 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="font-medium text-foreground">Apply Suggested Uplift</p>
+                <p className="text-sm text-muted-foreground">
+                  Based on the case studies above, we suggest an incremental lift of <span className="font-semibold text-primary">{suggestedUplift}%</span>. 
+                  Your current value is <span className="font-semibold">{inputs.incrementalLift}%</span>.
+                </p>
+              </div>
+              <Button onClick={applySuggestedUplift} className="shrink-0">
+                Apply {suggestedUplift}% Uplift
+              </Button>
+            </div>
+          )}
+
           {/* Input Form */}
           <InputForm inputs={inputs} onChange={setInputs} />
 
